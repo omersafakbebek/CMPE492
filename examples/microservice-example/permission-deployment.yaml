@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: permission
+  labels:
+    app: permission
+spec:
+  ports:
+    - port: 8005
+  selector:
+    app: permission
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: permission
+  labels:
+    app: permission
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: permission
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: permission
+    spec:
+      containers:
+      - image: gcr.io/cmpe492-416009/microservice-example-permission
+        name: permission
+        envFrom:
+        - configMapRef:
+            name: config-env
+        - secretRef:
+            name: secret-env
+        ports:
+        - containerPort: 8005
+          name: permission

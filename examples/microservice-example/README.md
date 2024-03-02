@@ -1,0 +1,2 @@
+# This repository includes a microservice project coded with nestjs framework. Kubernetes manifest files which can be used for creating a kubernetes infrastructure for deploying the application are provided.
+* In order to deploy, run kubectl apply -k ./

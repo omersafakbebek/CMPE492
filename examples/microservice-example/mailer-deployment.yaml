@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailer
+  labels:
+    app: mailer
+spec:
+  ports:
+    - port: 8004
+  selector:
+    app: mailer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailer
+  labels:
+    app: mailer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mailer
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mailer
+    spec:
+      containers:
+      - image: gcr.io/cmpe492-416009/microservice-example-mailer
+        name: mailer
+        envFrom:
+        - configMapRef:
+            name: config-env
+        - secretRef:
+            name: secret-env
+        ports:
+        - containerPort: 8004
+          name: mailer
