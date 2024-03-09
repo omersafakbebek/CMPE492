@@ -29,7 +29,7 @@ spec:
         app: permission
     spec:
       containers:
-      - image: gcr.io/cmpe492-416009/microservice-example-permission
+      - image: omersafakbebek/microservice-example-permission
         name: permission
         envFrom:
         - configMapRef:

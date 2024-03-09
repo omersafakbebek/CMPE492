@@ -29,7 +29,7 @@ spec:
         app: user
     spec:
       containers:
-      - image: gcr.io/cmpe492-416009/microservice-example-user
+      - image: omersafakbebek/microservice-example-user
         name: user
         envFrom:
         - configMapRef:

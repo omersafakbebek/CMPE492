@@ -29,7 +29,7 @@ spec:
         app: task
     spec:
       containers:
-      - image: gcr.io/cmpe492-416009/microservice-example-task
+      - image: omersafakbebek/microservice-example-task
         name: task
         envFrom:
         - configMapRef:

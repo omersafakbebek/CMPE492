@@ -29,7 +29,7 @@ spec:
         app: mailer
     spec:
       containers:
-      - image: gcr.io/cmpe492-416009/microservice-example-mailer
+      - image: omersafakbebek/microservice-example-mailer
         name: mailer
         envFrom:
         - configMapRef:

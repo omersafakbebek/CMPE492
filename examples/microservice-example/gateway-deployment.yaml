@@ -30,7 +30,7 @@ spec:
         app: gateway
     spec:
       containers:
-      - image: gcr.io/cmpe492-416009/microservice-example-gateway
+      - image: omersafakbebek/microservice-example-gateway
         name: gateway
         envFrom:
         - configMapRef:

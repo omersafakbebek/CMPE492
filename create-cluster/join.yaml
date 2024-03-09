@@ -1,0 +1,16 @@
+apiVersion: kubeadm.k8s.io/v1beta3
+caCertPath: /etc/kubernetes/pki/ca.crt
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: 10.240.0.11:6443
+    token: cmpe492k8scluster
+    unsafeSkipCAVerification: true
+  timeout: 5m0s
+  tlsBootstrapToken: medium.howtok5678songce
+kind: JoinConfiguration
+nodeRegistration:
+  criSocket: unix:///var/run/containerd/containerd.sock
+  imagePullPolicy: IfNotPresent
+  kubeletExtraArgs:
+    cloud-provider: gce
+  taints: []

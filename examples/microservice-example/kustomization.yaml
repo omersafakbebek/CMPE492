@@ -4,7 +4,7 @@ secretGenerator:
   - MONGO_URI=mongodb://db/db
   - MAILER_DSN=smtp.gmail.com
   - MAILER_FROM=safak0698@gmail.com
-  - MAILER_PASSWORD=<mailer_password>
+  - MAILER_PASSWORD=kqmb nrxj qshe wqsx
 configMapGenerator:
 - name: config-env
   literals:
@@ -20,7 +20,7 @@ configMapGenerator:
   - PERMISSION_SERVICE_PORT=8005
   - PERMISSION_SERVICE_HOST=permission
   - MAILER_DISABLED=0
-  - BASE_URI=http://34.41.200.199
+  - BASE_URI=http://35.242.207.9
 resources:
   - db-deployment.yaml
   - gateway-deployment.yaml

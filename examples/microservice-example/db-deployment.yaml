@@ -10,6 +10,19 @@ spec:
   selector:
     app: db
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-pv-claim
+  labels:
+    app: db
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,3 +47,10 @@ spec:
         ports:
         - containerPort: 27017
           name: mongo
+        volumeMounts:
+        - name: db-persistent-storage
+          mountPath: /data/db
+      volumes:
+      - name: db-persistent-storage
+        persistentVolumeClaim:
+          claimName: db-pv-claim
