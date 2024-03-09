@@ -1,0 +1,337 @@
+apiVersion: v1
+data:
+  API_GATEWAY_PORT: "8000"
+  BASE_URI: http://35.242.207.9
+  MAILER_DISABLED: "0"
+  MAILER_SERVICE_HOST: mailer
+  MAILER_SERVICE_PORT: "8004"
+  PERMISSION_SERVICE_HOST: permission
+  PERMISSION_SERVICE_PORT: "8005"
+  TASK_SERVICE_HOST: task
+  TASK_SERVICE_PORT: "8001"
+  TOKEN_SERVICE_HOST: token
+  TOKEN_SERVICE_PORT: "8002"
+  USER_SERVICE_HOST: user
+  USER_SERVICE_PORT: "8003"
+kind: ConfigMap
+metadata:
+  name: config-env-gkmdbmm9f5
+---
+apiVersion: v1
+data:
+  MAILER_DSN: c210cC5nbWFpbC5jb20=
+  MAILER_FROM: c2FmYWswNjk4QGdtYWlsLmNvbQ==
+  MAILER_PASSWORD: a3FtYiBucnhqIHFzaGUgd3FzeA==
+  MONGO_URI: bW9uZ29kYjovL2RiL2Ri
+kind: Secret
+metadata:
+  name: secret-env-7429mt59hh
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: db
+  name: db
+spec:
+  ports:
+  - port: 27017
+  selector:
+    app: db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: gateway
+  name: gateway
+spec:
+  ports:
+  - port: 8000
+  selector:
+    app: gateway
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mailer
+  name: mailer
+spec:
+  ports:
+  - port: 8004
+  selector:
+    app: mailer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: permission
+  name: permission
+spec:
+  ports:
+  - port: 8005
+  selector:
+    app: permission
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: task
+  name: task
+spec:
+  ports:
+  - port: 8001
+  selector:
+    app: task
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: token
+  name: token
+spec:
+  ports:
+  - port: 8002
+  selector:
+    app: token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: user
+  name: user
+spec:
+  ports:
+  - port: 8003
+  selector:
+    app: user
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: db
+  name: db-pv-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: db
+  name: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - image: mongo
+        name: mongo
+        ports:
+        - containerPort: 27017
+          name: mongo
+        volumeMounts:
+        - mountPath: /data/db
+          name: db-persistent-storage
+      volumes:
+      - name: db-persistent-storage
+        persistentVolumeClaim:
+          claimName: db-pv-claim
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: gateway
+  name: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: config-env-gkmdbmm9f5
+        image: omersafakbebek/microservice-example-gateway
+        name: gateway
+        ports:
+        - containerPort: 8000
+          name: gateway
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mailer
+  name: mailer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mailer
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mailer
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: config-env-gkmdbmm9f5
+        - secretRef:
+            name: secret-env-7429mt59hh
+        image: omersafakbebek/microservice-example-mailer
+        name: mailer
+        ports:
+        - containerPort: 8004
+          name: mailer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: permission
+  name: permission
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: permission
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: permission
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: config-env-gkmdbmm9f5
+        - secretRef:
+            name: secret-env-7429mt59hh
+        image: omersafakbebek/microservice-example-permission
+        name: permission
+        ports:
+        - containerPort: 8005
+          name: permission
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: task
+  name: task
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: task
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: task
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: config-env-gkmdbmm9f5
+        - secretRef:
+            name: secret-env-7429mt59hh
+        image: omersafakbebek/microservice-example-task
+        name: task
+        ports:
+        - containerPort: 8001
+          name: task
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: token
+  name: token
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: token
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: token
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: config-env-gkmdbmm9f5
+        - secretRef:
+            name: secret-env-7429mt59hh
+        image: omersafakbebek/microservice-example-token
+        name: token
+        ports:
+        - containerPort: 8002
+          name: token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: user
+  name: user
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: user
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: config-env-gkmdbmm9f5
+        - secretRef:
+            name: secret-env-7429mt59hh
+        image: omersafakbebek/microservice-example-user
+        name: user
+        ports:
+        - containerPort: 8003
+          name: user

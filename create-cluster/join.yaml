@@ -6,7 +6,7 @@ discovery:
     token: cmpe492k8scluster
     unsafeSkipCAVerification: true
   timeout: 5m0s
-  tlsBootstrapToken: medium.howtok5678songce
+  tlsBootstrapToken: cmpe492k8scluster
 kind: JoinConfiguration
 nodeRegistration:
   criSocket: unix:///var/run/containerd/containerd.sock
