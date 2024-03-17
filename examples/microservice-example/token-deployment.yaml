@@ -10,6 +10,26 @@ spec:
   selector:
     app: token
 ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: token
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: token
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,3 +59,8 @@ spec:
         ports:
         - containerPort: 8002
           name: token
+        resources:
+          limits:
+            cpu: 500m
+          requests:
+            cpu: 50m

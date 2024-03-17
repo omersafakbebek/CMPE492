@@ -164,7 +164,7 @@ export class UserController {
             user: createdUser,
             errors: null,
           };
-          await firstValueFrom(this.mailerServiceClient
+          this.mailerServiceClient
             .send('mail_send', {
               to: createdUser.email,
               subject: 'Email confirmation',
@@ -175,7 +175,7 @@ export class UserController {
                 userLink.link,
               )}"><b>Confirm The Email</b></a>
               </center>`,
-            }));
+            });
         } catch (e) {
           result = {
             status: HttpStatus.PRECONDITION_FAILED,

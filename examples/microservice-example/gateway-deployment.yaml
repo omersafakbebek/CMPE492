@@ -11,6 +11,26 @@ spec:
     app: gateway
   type: LoadBalancer
 ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,3 +58,8 @@ spec:
         ports:
         - containerPort: 8000
           name: gateway
+        resources:
+          limits:
+            cpu: 500m
+          requests:
+            cpu: 50m
