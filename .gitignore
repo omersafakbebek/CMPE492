@@ -130,3 +130,6 @@ dist
 .pnp.*
 
 venv
+*.pptx
+*.csv
+*-key.json

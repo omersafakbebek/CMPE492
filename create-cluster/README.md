@@ -91,3 +91,9 @@ kubectl create -f custom-resources.yaml
 * [Follow the instructions](https://github.com/kubernetes-sigs/gcp-compute-persistent-disk-csi-driver/blob/master/docs/kubernetes/user-guides/driver-install.md)
 ## Create the storage class
 ```kubectl apply -f storageclass.yaml```
+## Install metrics server
+```kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/high-availability-1.21+.yaml```
+## Approve kubelet certificate requests
+```
+for kubeletcsr in `kubectl -n kube-system get csr | grep kubernetes.io/kubelet-serving | awk '{ print $1 }'`; do kubectl certificate approve $kubeletcsr; done
+```

@@ -1,0 +1,454 @@
+---
+- name: Create VMs on GCP
+  hosts: localhost
+  gather_facts: no
+  vars:
+    project: cmpe492-416619
+    region: europe-west3
+    zone: europe-west3-c
+    network_name: example-k8s
+    subnet_name: k8s-nodes
+    subnet_range: 10.240.0.0/24
+    service_account_file: "gcp-key.json"
+    worker_node_count: 2 
+
+  tasks:
+    - name: Read JSON file and parse its content
+      set_fact:
+        json_data: "{{ lookup('file', service_account_file ) | from_json }}"
+    - name: Extract the email from the JSON data
+      set_fact:
+        service_account_email: "{{ json_data.client_email }}"
+    - name: Create the VPC network
+      google.cloud.gcp_compute_network:
+        name: "{{ network_name }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: present
+        auto_create_subnetworks: no
+      register: gcp_network
+
+    - name: Create the subnet
+      google.cloud.gcp_compute_subnetwork:
+        name: "{{ subnet_name }}"
+        network: "{{ gcp_network }}"
+        ip_cidr_range: "{{ subnet_range }}"
+        region: "{{ region }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: present
+      register: gcp_subnet
+
+    - name: Set up the internal firewall rule
+      google.cloud.gcp_compute_firewall:
+        name: "{{ network_name }}-allow-internal"
+        network: "{{ gcp_network }}"
+        allowed:
+          - ip_protocol: tcp
+          - ip_protocol: udp
+          - ip_protocol: icmp
+          - ip_protocol: ipip
+        source_ranges: "10.240.0.0/24"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: present
+
+    - name: Set up the external firewall rule
+      google.cloud.gcp_compute_firewall:
+        name: "{{ network_name }}-allow-external"
+        network: "{{ gcp_network }}"
+        allowed:
+          - ip_protocol: tcp
+            ports: ['22', '6443', '30000-32767']
+          - ip_protocol: icmp
+        source_ranges: "0.0.0.0/0"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: present
+
+    - name: Create the controller node
+      google.cloud.gcp_compute_instance:
+        name: "controller"
+        machine_type: e2-medium
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+              disk_size_gb: 10
+        network_interfaces:
+          - network: "{{ gcp_network }}"
+            subnetwork: "{{ gcp_subnet }}"
+            network_ip: "10.240.0.11"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+                network_tier: PREMIUM
+        metadata:
+          ssh-keys: "ansible_user:{{ lookup('file', '~/.ssh/gcp_ansible.pub') }}"
+        tags:
+          items:
+            - example-k8s
+            - controller
+        zone: "{{ zone }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        service_accounts:
+          - email: "{{ service_account_email }}"
+            scopes:
+            - "https://www.googleapis.com/auth/cloud-platform"
+        state: present
+      register: controller_instance
+
+    - name: Create worker nodes
+      google.cloud.gcp_compute_instance:
+        name: "worker-{{ item }}"
+        machine_type: e2-medium
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+              disk_size_gb: 10
+        network_interfaces:
+          - network: "{{ gcp_network }}"
+            subnetwork: "{{ gcp_subnet }}"
+            network_ip: "10.240.0.2{{ item }}"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+                network_tier: PREMIUM
+        metadata:
+          ssh-keys: "ansible_user:{{ lookup('file', '~/.ssh/gcp_ansible.pub') }}"
+        tags:
+          items:
+            - example-k8s
+            - worker
+        zone: "{{ zone }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        service_accounts:
+          - email: "{{ service_account_email }}"
+            scopes:
+            - "https://www.googleapis.com/auth/cloud-platform"
+        state: present
+      loop: "{{ range(0, worker_node_count | int)|list }}"
+      register: worker_instances
+
+    - name: Wait for SSH to be available
+      ansible.builtin.wait_for:
+        host: "{{ item.networkInterfaces[0].accessConfigs[0].natIP }}"
+        port: 22
+        timeout: 600 
+        state: started
+      loop: "{{ [ controller_instance ] + worker_instances.results }}"
+
+    - name: Add controller node to dynamic inventory
+      add_host:
+        name: "controller"
+        groups: "gcp_controller"
+        ansible_host: "{{ controller_instance.networkInterfaces[0].accessConfigs[0].natIP }}"
+        ansible_user: "ansible_user"
+        ansible_ssh_private_key_file: "~/.ssh/gcp_ansible"
+        host_key_checking: false
+
+    - name: Add worker nodes to dynamic inventory
+      add_host:
+        name: "worker-{{ item.item }}"
+        groups: "gcp_workers"
+        ansible_host: "{{ item.networkInterfaces[0].accessConfigs[0].natIP }}"
+        ansible_user: "ansible_user"
+        ansible_ssh_private_key_file: "~/.ssh/gcp_ansible"
+        host_key_checking: false
+      loop: "{{ worker_instances.results }}"
+
+    - name: Set service account, controller and worker instances as facts
+      ansible.builtin.set_fact:
+        service_account: "{{ service_account_file }}"
+        controller: "{{ controller_instance }}"
+        workers: "{{ worker_instances }}"
+        
+- name: Setup common prerequisites
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Install common packages
+      ansible.builtin.apt:
+        name: "{{ packages }}"
+        state: latest
+        update_cache: yes
+      vars:
+        packages:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+
+- name: Install Docker on all nodes
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Install Docker
+      ansible.builtin.apt:
+        name: docker.io
+        state: latest
+        update_cache: yes
+
+    - name: Enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+- name: Install Kubernetes components
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create the keyrings folder
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+
+    - name: Add Kubernetes GPG key
+      ansible.builtin.apt_key:
+        keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        url: https://pkgs.k8s.io/core:/stable:/v1.25/deb/Release.key
+        state: present
+
+    - name: Add Kubernetes APT repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.25/deb /
+        state: present
+        filename: kubernetes
+
+    - name: Install kubelet, kubeadm and kubectl
+      ansible.builtin.apt:
+        name: "{{ packages }}"
+        state: latest
+        update_cache: yes
+      vars:
+        packages:
+          - kubelet
+          - kubeadm
+          - kubectl
+
+    - name: Hold kubelet, kubeadm, and kubectl at current version
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+- name: Initialize the Kubernetes cluster on the controller node
+  hosts: controller
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Generate kubeadm config file from template
+      ansible.builtin.template:
+        src: config.yaml.j2
+        dest: /etc/kubernetes/config.yaml
+    - name: Initialize the Kubernetes cluster
+      ansible.builtin.shell: kubeadm init --config=config.yaml
+      args:
+        chdir: /etc/kubernetes/
+      ignore_errors: yes 
+
+    - name: Ensure .kube directory exists
+      ansible.builtin.file:
+        path: "$HOME/.kube"
+        state: directory
+      become: false
+
+    - name: Get non-root user's home directory
+      ansible.builtin.command: echo $HOME
+      register: non_root_home
+      become: false
+
+    - name: Copy admin.conf to kubeconfig ansible_user
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ non_root_home.stdout }}/.kube/config"
+        remote_src: yes
+
+- name: Join worker nodes to the Kubernetes cluster
+  hosts: gcp_workers
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Copy join configuration to worker
+      ansible.builtin.copy:
+        src: join.yaml
+        dest: /etc/kubernetes/join.yaml
+    - name: Join the cluster
+      ansible.builtin.shell: kubeadm join --config join.yaml
+      args:
+        chdir: /etc/kubernetes/
+      ignore_errors: yes
+
+- name: Install Calico CNI plugin on the controller node
+  hosts: controller
+  gather_facts: false
+  tasks:
+    - name: Download Calico manifest
+      ansible.builtin.get_url:
+        url: https://docs.projectcalico.org/manifests/calico.yaml
+        dest: ~/.kube/calico.yaml
+        
+    - name: Apply Calico manifest
+      ansible.builtin.shell: kubectl apply -f ~/.kube/calico.yaml
+
+- name: Install the Metrics Server on the controller node
+  hosts: controller
+  gather_facts: false
+  tasks:
+    - name: Apply metrics server manifest
+      ansible.builtin.shell: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+    
+    - name: Patch metrics-server deployment to skip TLS verification
+      ansible.builtin.shell: |
+        kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+
+- name: Use kubectl locally
+  hosts: controller
+  gather_facts: no
+  vars:
+    local_kube_config_path: "~/.kube/config-ansible"
+    new_api_server_address: "https://{{ ansible_host }}:6443"
+  tasks:
+    - name: Fetch kubeconfig from controller
+      ansible.builtin.fetch:
+        src: "~/.kube/config"
+        dest: "{{ local_kube_config_path }}"
+        flat: yes
+
+    - name: Update the API server address
+      ansible.builtin.replace:
+        path: "{{ local_kube_config_path }}"
+        regexp: 'server: https://.*'
+        replace: 'server: {{ new_api_server_address }}'
+      delegate_to: localhost
+
+    - name: Merge kubeconfigs into a single file
+      ansible.builtin.shell: |
+        export KUBECONFIG={{ local_kube_config_path }}:~/.kube/config
+        kubectl config view --flatten > ~/.kube/temp.yaml
+        mv ~/.kube/temp.yaml ~/.kube/config
+      delegate_to: localhost
+
+- name: Install gcp compute persistent disk csi driver
+  hosts: controller
+  vars:
+    go_path: "{{ ansible_env.HOME }}/go_path"
+    driver_env:
+      PROJECT: cmpe492-416619
+      GCE_PD_SA_NAME: gce-pd-csi-sa
+      GCE_PD_SA_DIR: "{{ ansible_env.HOME }}/cred"
+      GOPATH: "{{ go_path }}"
+      ENABLE_KMS: true
+      ENABLE_KMS_ADMIN: true
+      GCE_PD_DRIVER_VERSION: stable-master
+  tasks:
+    - name: Clone the repository
+      ansible.builtin.git:
+        dest: "{{ go_path }}/src/sigs.k8s.io/gcp-compute-persistent-disk-csi-driver"
+        repo: https://github.com/kubernetes-sigs/gcp-compute-persistent-disk-csi-driver
+
+    - name: Create the directory to save the service account key
+      ansible.builtin.file:
+        path: "{{ driver_env['GCE_PD_SA_DIR'] }}"
+        state: directory
+
+    - name: Create the service account
+      ansible.builtin.expect: 
+        command: ./deploy/setup-project.sh
+        echo: true
+        responses:
+          y/n: "y"
+      environment:
+        "{{ driver_env }}"
+      args:
+        chdir: "{{ go_path }}/src/sigs.k8s.io/gcp-compute-persistent-disk-csi-driver"
+
+    - name: Deploy the driver
+      ansible.builtin.shell: |
+        ./deploy/kubernetes/deploy-driver.sh
+      environment:
+        "{{ driver_env }}"
+      args:
+        chdir: "{{ go_path }}/src/sigs.k8s.io/gcp-compute-persistent-disk-csi-driver"
+        
+- name: Setup StorageClass in Kubernetes cluster
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Create GCE PD StorageClass
+      ansible.builtin.shell: kubectl apply -f storageclass.yaml
+- name: Deploy the application
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Deploy
+      ansible.builtin.shell:
+        kubectl apply -f kust-out.yaml
+- name: Get External IP of Load Balancer Service
+  hosts: localhost
+  gather_facts: no
+  tasks:
+        
+    - name: Wait for Load Balancer External IP to be ready
+      ansible.builtin.command: >
+        kubectl get svc gateway -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: lb_ip
+      changed_when: false
+      until: lb_ip.stdout != ''
+      retries: 12  
+      delay: 10  
+
+
+    - name: Debug Load Balancer IP
+      ansible.builtin.debug:
+        msg: "The Load Balancer IP is: {{ lb_ip.stdout }}"
+
+- name: Run the load generator
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Run Locust Test
+      ansible.builtin.shell: >
+        venv/bin/locust -f locustfile.py --headless --host=http://{{ lb_ip.stdout }}:8000 -u 1000 -r 1 --run-time 1m --only-summary --csv res
+      args:
+        chdir: "{{ lookup('env', 'PWD') }}/../locust"
+      ignore_errors: true
+- name: Delete the vms
+  hosts: localhost
+  gather_facts: yes
+  tasks: 
+    - name: debug
+      ansible.builtin.debug:
+        msg: "{{hostvars['localhost']['service_account']}}"
+    - name: Delete
+      google.cloud.gcp_compute_instance:
+        state: absent
+        name: "{{ item.name }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ hostvars['localhost']['service_account'] }}"
+        project: cmpe492-416619
+        zone: europe-west3-c
+      loop: "{{ [ hostvars['localhost']['controller'] ] + hostvars['localhost']['workers'].results }}"
+        
+        
+
+
+ 

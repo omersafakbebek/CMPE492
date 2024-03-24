@@ -21,7 +21,7 @@ nodeRegistration:
 ---
 apiServer:
   certSANs:
-  - 35.198.124.114 #Public ip of the controller node
+  - "{{ ansible_host }}" #Public ip of the controller node
   extraArgs:
     authorization-mode: Node,RBAC
     cloud-provider: gce
