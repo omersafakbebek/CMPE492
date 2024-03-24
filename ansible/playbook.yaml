@@ -438,6 +438,10 @@
     - name: debug
       ansible.builtin.debug:
         msg: "{{hostvars['localhost']['service_account']}}"
+    - name: Delete the resources
+      ansible.builtin.command:
+        kubectl delete -f kust-out.yaml
+  
     - name: Delete
       google.cloud.gcp_compute_instance:
         state: absent
