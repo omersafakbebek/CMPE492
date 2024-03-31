@@ -30,33 +30,36 @@ def watch_pod_creation():
     ret = v1.list_namespaced_pod("default")
     for pod in ret.items:
         pods[pod.metadata.name] = {"phase": pod.status.phase}
-    print(pods[0])
-    # for event in w.stream(v1.list_namespaced_pod,namespace= "default",timeout_seconds=200):
-    #     event_type = event['type']
-    #     pod_name = event['object'].metadata.name
-    #     pod_phase = event['object'].status.phase
-    #     if (pod_name in pods.keys() and pods[pod_name]["phase"] == "Running"):
-    #         continue
-    #     if event_type == "ADDED":
-    #         t= time() - start
-    #         print("%s added at %s" % (pod_name, t))
-    #         pods[pod_name]={"phase": pod_phase, "created_at":t}
-    #     elif (pod_phase == "Running"): 
-    #         t = time() - start
-    #         duration = t - pods[pod_name]["created_at"]
-    #         pods[pod_name]["phase"] = pod_phase
-    #         pods[pod_name]["completed_at"] = t
-    #         pods[pod_name]["duration"] = duration
-    #         pods[pod_name]["node"] = event['object'].spec.node_name
-    #         print("%s completed at %s in %s seconds" % (pod_name, t, duration))
-    #     else:
-    #         pods[pod_name]["phase"] = pod_phase
-    #     if (is_completed(pods.values())):
-    #         w.stop()     
+    for event in w.stream(v1.list_namespaced_pod,namespace= "default",timeout_seconds=200):
+        event_type = event['type']
+        pod_name = event['object'].metadata.name
+        pod_phase = event['object'].status.phase
+        if (pod_name in pods.keys() and pods[pod_name]["phase"] == "Running"):
+            continue
+        if event_type == "ADDED":
+            t= time() - start
+            print("%s added at %s" % (pod_name, t))
+            pods[pod_name]={"phase": pod_phase, "created_at":t}
+        elif (pod_phase == "Running"): 
+            t = time() - start
+            duration = t - pods[pod_name]["created_at"]
+            pods[pod_name]["phase"] = pod_phase
+            pods[pod_name]["completed_at"] = t
+            pods[pod_name]["duration"] = duration
+            pods[pod_name]["node"] = event['object'].spec.node_name
+            print("%s completed at %s in %s seconds" % (pod_name, t, duration))
+        else:
+            pods[pod_name]["phase"] = pod_phase
+        if (is_completed(pods.values())):
+            w.stop()     
     print("Pod creation stage is completed")
     print(print_data_as_table(pods))
+def create_from_yaml(filename):
+    k8s_client = client.ApiClient()
+    utils.create_from_yaml(k8s_client, filename)
 def main():
     config.load_kube_config()
+    create_from_yaml("kust-out.yaml")
     watch_pod_creation()
 if __name__ == "__main__":
     main()
