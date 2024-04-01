@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-creation-latency-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pod-creation-latency-watcher
+  template:
+    metadata:
+      labels:
+        app: pod-creation-latency-watcher
+    spec:
+      containers:
+      - name: pod-creation-latency-watcher
+        image: omersafakbebek/addon-example
+        ports:
+        - containerPort: 3000
