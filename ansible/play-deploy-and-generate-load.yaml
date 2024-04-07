@@ -1,0 +1,36 @@
+---
+- name: Deploy the application
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Deploy
+      ansible.builtin.command:
+        kubectl apply -f kust-out.yaml
+      changed_when: false
+- name: Get External IP of Load Balancer Service
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: Wait for Load Balancer External IP to be ready
+      ansible.builtin.command: >
+        kubectl get svc gateway -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: lb_ip
+      changed_when: false
+      until: lb_ip.stdout != ''
+      retries: 12
+      delay: 10
+    - name: Debug Load Balancer IP
+      ansible.builtin.debug:
+        msg: "The Load Balancer IP is: {{ lb_ip.stdout }}"
+
+- name: Run the load generator
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Run Locust Test
+      ansible.builtin.command: >
+        venv/bin/locust -f locustfile.py --headless --host=http://{{ lb_ip.stdout }}:8000 -u 1000 -r 1 --run-time 1m --only-summary --csv res
+      args:
+        chdir: "{{ lookup('env', 'PWD') }}/../locust"
+      failed_when: false
+      changed_when: false

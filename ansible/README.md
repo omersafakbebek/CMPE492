@@ -4,4 +4,9 @@
 * ```export ANSIBLE_SSH_COMMON_ARGS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"```
 * ```export ANSIBLE_HOST_KEY_CHECKING=False```
 * ```ansible-galaxy collection install google.cloud```
-* ```ansible-playbook playbook -e "worker_node_count=3"``
+## To Create the Cluster
+* ```ansible-playbook play-create-cluster.yaml -e "worker_node_count=3"``
+## To Deploy the Application
+* ```ansible-playbook play-deploy-and-generate-load.yaml``
+## To Delete All Resources
+* ```ansible-playbook play-delete-all.yaml -e "worker_node_count=3"``

@@ -1,0 +1,33 @@
+---
+- name: Delete the vms
+  hosts: localhost
+  gather_facts: yes
+  vars:
+      project: cmpe492-416619
+      zone: europe-west6-a
+      service_account_file: "gcp-key.json"
+      worker_node_count: 2 
+  tasks: 
+    - name: Delete the resources
+      ansible.builtin.command:
+        kubectl delete -f kust-out.yaml
+      ignore_errors: true
+  
+    - name: Delete the controller node
+      google.cloud.gcp_compute_instance:
+        name: "controller"
+        zone: "{{ zone }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: absent
+
+    - name: Delete the worker nodes
+      google.cloud.gcp_compute_instance:
+        name: "worker-{{ item }}"
+        zone: "{{ zone }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: absent
+      loop: "{{ range(0, worker_node_count | int)|list }}"

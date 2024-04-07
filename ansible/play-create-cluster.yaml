@@ -4,8 +4,8 @@
   gather_facts: no
   vars:
     project: cmpe492-416619
-    region: europe-west3
-    zone: europe-west3-c
+    region: europe-west6
+    zone: europe-west6-a
     network_name: example-k8s
     subnet_name: k8s-nodes
     subnet_range: 10.240.0.0/24
@@ -70,15 +70,28 @@
         service_account_file: "{{ service_account_file }}"
         state: present
 
+    - name: Create a GCP Image
+      google.cloud.gcp_compute_image:
+        name: "custom-ubuntu-2004-nested"
+        project: "{{ project }}"
+        source_image: 
+          selfLink: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+        licenses:
+          - "https://www.googleapis.com/compute/v1/projects/vm-options/global/licenses/enable-vmx"
+        auth_kind: serviceaccount
+        service_account_file: "{{ service_account_file }}"
+        state: present
+      register: gcp_image
+
     - name: Create the controller node
       google.cloud.gcp_compute_instance:
         name: "controller"
-        machine_type: e2-medium
+        machine_type: n1-standard-2
         disks:
           - auto_delete: true
             boot: true
             initialize_params:
-              source_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+              source_image: "{{ gcp_image.selfLink }}"
               disk_size_gb: 10
         network_interfaces:
           - network: "{{ gcp_network }}"
@@ -88,6 +101,7 @@
               - name: External NAT
                 type: ONE_TO_ONE_NAT
                 network_tier: PREMIUM
+        min_cpu_platform: "Intel Haswell"
         metadata:
           ssh-keys: "ansible_user:{{ lookup('file', '~/.ssh/gcp_ansible.pub') }}"
         tags:
@@ -108,12 +122,12 @@
     - name: Create worker nodes
       google.cloud.gcp_compute_instance:
         name: "worker-{{ item }}"
-        machine_type: e2-medium
+        machine_type: n1-standard-2
         disks:
           - auto_delete: true
             boot: true
             initialize_params:
-              source_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+              source_image: "{{ gcp_image.selfLink }}"
               disk_size_gb: 10
         network_interfaces:
           - network: "{{ gcp_network }}"
@@ -123,6 +137,7 @@
               - name: External NAT
                 type: ONE_TO_ONE_NAT
                 network_tier: PREMIUM
+        min_cpu_platform: "Intel Haswell"
         metadata:
           ssh-keys: "ansible_user:{{ lookup('file', '~/.ssh/gcp_ansible.pub') }}"
         tags:
@@ -395,64 +410,3 @@
   tasks:
     - name: Create GCE PD StorageClass
       ansible.builtin.shell: kubectl apply -f storageclass.yaml
-- name: Deploy the application
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Deploy
-      ansible.builtin.shell:
-        kubectl apply -f kust-out.yaml
-- name: Get External IP of Load Balancer Service
-  hosts: localhost
-  gather_facts: no
-  tasks:
-        
-    - name: Wait for Load Balancer External IP to be ready
-      ansible.builtin.command: >
-        kubectl get svc gateway -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-      register: lb_ip
-      changed_when: false
-      until: lb_ip.stdout != ''
-      retries: 12  
-      delay: 10  
-
-
-    - name: Debug Load Balancer IP
-      ansible.builtin.debug:
-        msg: "The Load Balancer IP is: {{ lb_ip.stdout }}"
-
-- name: Run the load generator
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Run Locust Test
-      ansible.builtin.shell: >
-        venv/bin/locust -f locustfile.py --headless --host=http://{{ lb_ip.stdout }}:8000 -u 1000 -r 1 --run-time 1m --only-summary --csv res
-      args:
-        chdir: "{{ lookup('env', 'PWD') }}/../locust"
-      ignore_errors: true
-- name: Delete the vms
-  hosts: localhost
-  gather_facts: yes
-  tasks: 
-    - name: debug
-      ansible.builtin.debug:
-        msg: "{{hostvars['localhost']['service_account']}}"
-    - name: Delete the resources
-      ansible.builtin.command:
-        kubectl delete -f kust-out.yaml
-  
-    - name: Delete
-      google.cloud.gcp_compute_instance:
-        state: absent
-        name: "{{ item.name }}"
-        auth_kind: serviceaccount
-        service_account_file: "{{ hostvars['localhost']['service_account'] }}"
-        project: cmpe492-416619
-        zone: europe-west3-c
-      loop: "{{ [ hostvars['localhost']['controller'] ] + hostvars['localhost']['workers'].results }}"
-        
-        
-
-
- 
