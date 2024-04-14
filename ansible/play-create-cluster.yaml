@@ -92,7 +92,7 @@
             boot: true
             initialize_params:
               source_image: "{{ gcp_image.selfLink }}"
-              disk_size_gb: 10
+              disk_size_gb: 50
         network_interfaces:
           - network: "{{ gcp_network }}"
             subnetwork: "{{ gcp_subnet }}"
@@ -128,7 +128,7 @@
             boot: true
             initialize_params:
               source_image: "{{ gcp_image.selfLink }}"
-              disk_size_gb: 10
+              disk_size_gb: 50
         network_interfaces:
           - network: "{{ gcp_network }}"
             subnetwork: "{{ gcp_subnet }}"

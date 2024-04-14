@@ -1,0 +1,79 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachineInstanceReplicaSet
+metadata:
+  name: testreplicaset
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      kubevirt.io/domain: ubuntu-vm
+  template:
+    metadata:
+      labels:
+        kubevirt.io/size: small
+        kubevirt.io/domain: ubuntu-vm
+    spec:
+      domain:
+        cpu:
+          cores: 2
+        devices:
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+          - name: default
+            masquerade: {}
+        resources:
+          requests:
+            memory: 2048Mi
+      networks:
+      - name: default
+        pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: tedezed/ubuntu-container-disk:22.0
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |-
+              #cloud-config
+              password: password
+              shell: /bin/bash
+              lock-passwd: false
+              ssh_pwauth: True
+              chpasswd: { expire: False }
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              groups: users, admin
+              ssh_authorized_keys:
+              - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINlag+nDNGHa5ROa9QbI7oE002eiU/p2UnehYT+o9yS/ kim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vm1-svc
+spec:
+  ports:
+  - port: 22
+    name: ssh
+    protocol: TCP
+    targetPort: 22
+  selector:
+    kubevirt.io/domain: ubuntu-vm
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: myhpa
+spec:
+  scaleTargetRef:
+    kind: VirtualMachineInstanceReplicaSet
+    name: testreplicaset
+    apiVersion: kubevirt.io/v1
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
