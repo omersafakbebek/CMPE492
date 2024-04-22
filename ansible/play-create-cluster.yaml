@@ -410,3 +410,15 @@
   tasks:
     - name: Create GCE PD StorageClass
       ansible.builtin.shell: kubectl apply -f storageclass.yaml
+
+- name: Setup Kubevirt
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Deploy Kubevirt Operator and Custom Resource Definitions
+      ansible.builtin.shell: |
+        export VERSION=$(curl -s https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt)
+        echo $VERSION
+        kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$VERSION/kubevirt-operator.yaml
+        kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/$VERSION/kubevirt-cr.yaml
+        
