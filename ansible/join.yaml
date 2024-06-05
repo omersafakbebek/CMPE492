@@ -1,16 +1,15 @@
 apiVersion: kubeadm.k8s.io/v1beta3
-caCertPath: /etc/kubernetes/pki/ca.crt
+kind: JoinConfiguration
 discovery:
   bootstrapToken:
-    apiServerEndpoint: 10.240.0.11:6443
-    token: abc123.def456ghi7sad211
+    apiServerEndpoint: "10.240.0.11:6443"
+    token: "abc123.def456ghi7sad211"
     unsafeSkipCAVerification: true
-  timeout: 5m0s
-  tlsBootstrapToken: abc123.def456ghi7sad211
-kind: JoinConfiguration
+  tlsBootstrapToken: "abc123.def456ghi7sad211"
 nodeRegistration:
-  criSocket: unix:///var/run/containerd/containerd.sock
+  criSocket: "unix:///var/run/crio/crio.sock"
   imagePullPolicy: IfNotPresent
   kubeletExtraArgs:
     cloud-provider: gce
+    feature-gates: ContainerCheckpoint=true
   taints: []

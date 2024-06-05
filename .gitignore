@@ -133,3 +133,5 @@ venv
 *.pptx
 *.csv
 *-key.json
+
+.DS_Store

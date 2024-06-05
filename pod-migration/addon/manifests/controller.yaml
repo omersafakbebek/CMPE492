@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: controller
+  labels:
+    app: controller
+spec:
+  nodeName: controller
+  containers:
+    - name: controller
+      image: omersafakbebek/controller:latest
+      ports:
+      - containerPort: 8000
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: controller
+spec:
+  type: NodePort
+  selector:
+    app: controller
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

@@ -3,15 +3,15 @@
   hosts: localhost
   gather_facts: yes
   vars:
-      project: cmpe492-416619
+      project: cmpe492-424509
       zone: europe-west6-a
       service_account_file: "gcp-key.json"
       worker_node_count: 2 
   tasks: 
-    - name: Delete the resources
-      ansible.builtin.command:
-        kubectl delete -f kust-out.yaml
-      ignore_errors: true
+    # - name: Delete the resources
+    #   ansible.builtin.command:
+    #     kubectl delete -f kust-out.yaml
+    #   ignore_errors: true
   
     - name: Delete the controller node
       google.cloud.gcp_compute_instance:

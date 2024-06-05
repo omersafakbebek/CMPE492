@@ -1,0 +1,5 @@
+resources:
+  - "role.yaml"
+  - "rolebinding.yaml"
+  - "controller.yaml"
+  - "agent.yaml"

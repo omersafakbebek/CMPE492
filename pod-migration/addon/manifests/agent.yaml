@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: agent
+spec:
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      containers:
+      - name: agent
+        image: omersafakbebek/agent:latest
+        ports:
+        - containerPort: 8001
+        securityContext:
+          privileged: true
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        volumeMounts:
+        - name: kubelet-client-certs
+          mountPath: "/etc/kubernetes/pki"
+          readOnly: true
+        - name: checkpoints
+          mountPath: "/var/lib/kubelet/checkpoints"
+          readOnly: false
+        - name: transferred-checkpoints
+          mountPath: "/tmp/checkpoints"
+          readOnly: false
+        - name: var-run
+          mountPath: "/var/run"
+        - name: storage
+          mountPath: "/var/lib/containers/storage"
+          readOnly: false
+      volumes:
+      - name: kubelet-client-certs
+        hostPath:
+          path: /etc/kubernetes/pki
+          type: DirectoryOrCreate
+      - name: checkpoints
+        hostPath:
+          path: /var/lib/kubelet/checkpoints
+          type: DirectoryOrCreate
+      - name: transferred-checkpoints
+        hostPath:
+          path: /tmp/checkpoints
+          type: DirectoryOrCreate
+      - name: var-run
+        hostPath:
+          path: /var/run
+          type: Directory
+      - name: storage
+        hostPath:
+          path: /var/lib/containers/storage
+          type: DirectoryOrCreate

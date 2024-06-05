@@ -5,7 +5,7 @@
   vars:
     project: cmpe492-424509
     region: europe-west6
-    zone: europe-west6-b
+    zone: europe-west6-a
     network_name: example-k8s
     subnet_name: k8s-nodes
     subnet_range: 10.240.0.0/24
@@ -206,18 +206,6 @@
           - curl
           - gnupg
 
-- name: Disable swap
-  hosts: all
-  gather_facts: false
-  become: true
-  tasks:
-    - name: Disable swap
-      ansible.builtin.command: swapoff -a
-    - name: Comment out swap partition in /etc/fstab
-      ansible.builtin.replace:
-        path: /etc/fstab
-        regexp: '^/swap.img'
-        replace: '#/swap.img'
 - name: Load required kernel modules
   hosts: all
   gather_facts: false
@@ -279,8 +267,37 @@
         dest: /etc/criu/runc.conf
         content: |
           tcp-established
-          log-file /tmp/criu.log
-          external inet
+
+- name: Install runc
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Download runc
+      get_url:
+        url: https://github.com/opencontainers/runc/releases/download/v1.1.4/runc.amd64
+        dest: /usr/local/sbin/runc
+        mode: '0755'
+
+# - name: Install CNI plugins
+#   hosts: all
+#   gather_facts: false
+#   become: true
+#   tasks:
+#     - name: Download CNI plugins
+#       get_url:
+#         url: https://github.com/containernetworking/plugins/releases/download/v1.1.1/cni-plugins-linux-amd64-v1.1.1.tgz
+#         dest: /tmp/cni-plugins.tgz
+
+#     - name: Create CNI plugins directory
+#       file:
+#         path: /opt/cni/bin
+#         state: directory
+#     - name: Extract CNI plugins
+#       unarchive:
+#         src: /tmp/cni-plugins.tgz
+#         dest: /opt/cni/bin/
+#         remote_src: true
 - name: Install and configure CRI-O
   hosts: all
   gather_facts: false
@@ -300,14 +317,14 @@
     - name: Add CRI-O repository from OpenSUSE
       ansible.builtin.shell: |
         OS="xUbuntu_20.04"
-        VERSION="1.26"
+        VERSION="1.28"
         echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
         echo "deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.list
 
     - name: Add the CRI-O GPG keys
       ansible.builtin.shell: |
         OS="xUbuntu_20.04"
-        VERSION="1.26"
+        VERSION="1.28"
         curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:$VERSION/$OS/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -
         curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -
 
@@ -477,6 +494,16 @@
     - name: Apply Calico manifest
       ansible.builtin.shell: kubectl apply -f ~/.kube/calico.yaml
 
+# - name: Install the Metrics Server on the controller node
+#   hosts: controller
+#   gather_facts: false
+#   tasks:
+#     - name: Apply metrics server manifest
+#       ansible.builtin.shell: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+    
+#     - name: Patch metrics-server deployment to skip TLS verification
+#       ansible.builtin.shell: |
+#         kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
 - name: Install buildah on all nodes
   hosts: all
   gather_facts: false
@@ -513,36 +540,5 @@
         kubectl config view --flatten > ~/.kube/temp.yaml
         mv ~/.kube/temp.yaml ~/.kube/config
       delegate_to: localhost
-- name: Restart CoreDNS pods
-  hosts: controller
-  gather_facts: false
-  tasks:
-    - name: Restart CoreDNS pods
-      ansible.builtin.shell: kubectl rollout restart deployment coredns -n kube-system
-- name: Transfer pem file
-  hosts: all
-  gather_facts: false
-  become: true
-  tasks:
-    - name: Transfer pem file
-      copy:
-        src: "~/.ssh/gcp_ansible"
-        dest: "/etc/kubernetes/pki/sftp.pem"
-- name: Create /tmp/checkpoints on all nodes with 777
-  hosts: all
-  gather_facts: false
-  become: true
-  tasks:
-    - name: Create /tmp/checkpoints
-      file:
-        path: /tmp/checkpoints
-        state: directory
-        mode: 0777
-- name: Pull nginx image to all nodes
-  hosts: all
-  gather_facts: false
-  become: true
-  tasks:
-    - name: Pull nginx image
-      ansible.builtin.command: buildah pull docker.io/nginx
+
 
